@@ -2,3 +2,7 @@ django==5.1.1
 
 channels==4.1.0
 daphne==4.1.2
+
+langchain-community>=0.3.1
+langgraph>=0.2.32
+websockets==13.1

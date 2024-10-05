@@ -134,7 +134,16 @@ LOGGING = {
     "disable_existing_loggers": False,
     "formatters": {
         "simple": {
-            "format": "{levelname} [{asctime}] {message}",
+            "()": "colorlog.ColoredFormatter",
+            "format": "{log_color}{levelname} [{asctime}] {message}{reset}",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+            "log_colors": {
+                "DEBUG": "cyan",
+                "INFO": "green",
+                "WARNING": "yellow",
+                "ERROR": "red",
+                "CRITICAL": "red,bg_white",
+            },
             "style": "{",
         },
     },

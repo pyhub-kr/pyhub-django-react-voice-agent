@@ -6,3 +6,5 @@ daphne==4.1.2
 langchain-community>=0.3.1
 langgraph>=0.2.32
 websockets==13.1
+
+colorlog

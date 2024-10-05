@@ -7,6 +7,8 @@ from typing import Any, AsyncIterator, Union
 import websockets
 from langchain_core.tools import BaseTool
 
+from django.contrib.auth import get_user_model
+
 from langchain_openai_voice import (
     amerge,
     VoiceToolExecutor,
@@ -16,6 +18,8 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 
 
 logger = logging.getLogger(__name__)
+
+User = get_user_model()
 
 
 class BaseOpenAIRealtimeConsumer(AsyncWebsocketConsumer):
@@ -35,10 +39,59 @@ class BaseOpenAIRealtimeConsumer(AsyncWebsocketConsumer):
         tools_by_name = {tool.name: tool for tool in self.tools or []}
         self.tool_executor = VoiceToolExecutor(tools_by_name=tools_by_name)
 
+    async def check_permission(self, user) -> bool:
+        """
+        웹소켓 연결을 요청받았을 때 호출됩니다. 사용자의 권한을 확인하며 거짓을 반환하면 웹소켓 연결 요청을 거부합니다.
+
+        Args:
+            user: 권한을 확인할 사용자 객체
+
+        Returns:
+            bool: 사용자가 권한이 있으면 True, 없으면 False
+
+        Note:
+            현재는 모든 사용자에게 권한을 부여합니다.
+            필요에 따라 이 메서드를 수정하여 실제 권한 검사를 구현할 수 있습니다.
+        """
+        return True
+
     async def connect(self):
-        await self.accept()
-        self.agent_task = asyncio.create_task(self.run_agent())
-        self.agent_task.add_done_callback(self.handle_agent_task_result)
+        """
+        WebSocket 연결을 처리하는 메서드입니다.
+
+        이 메서드는 다음과 같은 기능을 수행합니다:
+        1. 사용자 인증 정보 확인
+        2. 사용자 권한 검사
+        3. WebSocket 연결 수락 또는 거부
+        4. 에이전트 태스크 생성 및 실행
+
+        연결 과정에서 발생할 수 있는 오류:
+        - 4500: AuthMiddlewareStack이 적용되지 않은 경우
+        - 4403: 사용자 권한이 없는 경우
+
+        Returns:
+            None
+        """
+
+        if "user" not in self.scope:
+            logger.error(
+                "사용자 정보가 scope에 없습니다. asgi.py에서 AuthMiddlewareStack을 적용해주세요."
+            )
+            await self.close(
+                code=4500
+            )  # 4500: 커스텀 에러 코드 (AuthMiddlewareStack 미적용)
+            return
+
+        if not await self.check_permission(self.scope["user"]):
+            # 수락하고 종료를 해야, 지정한 종료코드가 전달됩니다.
+            await self.accept()
+            await self.close(
+                code=4403
+            )  # 4403: Forbidden (custom code for unauthorized access)
+        else:
+            await self.accept()
+            self.agent_task = asyncio.create_task(self.run_agent())
+            self.agent_task.add_done_callback(self.handle_agent_task_result)
 
     @staticmethod
     def handle_agent_task_result(task: asyncio.Task) -> None:

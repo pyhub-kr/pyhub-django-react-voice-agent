@@ -32,6 +32,14 @@ class OpenAIRealtimeConsumer(BaseOpenAIRealtimeConsumer):
     # api_key: str = os.getenv("OPENAI_API_KEY", "")
     instructions = "You are a helpful assistant. Speak Korean."
     tools = [add, tavily_tool]
+
+    async def check_permission(self, user) -> bool:
+        # 웹소켓 연결을 요청받았을 때 호출됩니다. 사용자의 권한을 확인하며 거짓을 반환하면 웹소켓 연결 요청을 거부합니다.
+        # 디폴트로 True를 반환하여 모든 웹소켓 요청을 허용합니다.
+        return True
+
+        # 로그인 여부로 웹소켓 접속 권한을 체크할 경우에는 아래와 같이 구현합니다.
+        # return await sync_to_async(lambda: user.is_authenticated)()        
 ```
 
 ## 설치 방법
@@ -74,15 +82,21 @@ $env:OPENAI_API_KEY="your_api_key"
 export OPENAI_API_KEY=your_api_key
 ```
 
-2. 이어서 Django 서버를 실행합니다:
+2. 기본 데이터베이스 생성을 위해 migrate 명령을 수행합니다. `SQLite` 데이터베이스가 프로젝트 루트에 `db.sqlite3` 파일로 생성됩니다.
+
+```shell
+python manage.py migrate
+```
+
+3. 이어서 Django 서버를 실행합니다:
 
 ```shell
 python manage.py runserver
 ```
 
-3. 웹 브라우저에서 `http://localhost:8000`으로 접속합니다.
+4. 웹 브라우저에서 `http://localhost:8000`으로 접속합니다.
 
-4. "Start Audio" 버튼을 클릭하여 음성 대화를 시작합니다.
+5. "Start Audio" 버튼을 클릭하여 음성 대화를 시작합니다.
 
 ## 사용 방법
 

@@ -1,6 +1,7 @@
 from langchain_core.tools import tool
-
 from langchain_community.tools import TavilySearchResults
+
+from .base import BaseOpenAIRealtimeConsumer
 
 
 @tool
@@ -18,4 +19,7 @@ tavily_tool = TavilySearchResults(
     ),
 )
 
-TOOLS = [add, tavily_tool]
+
+class OpenAIRealtimeConsumer(BaseOpenAIRealtimeConsumer):
+    instructions = "You are a helpful assistant. Speak Korean."
+    tools = [add, tavily_tool]

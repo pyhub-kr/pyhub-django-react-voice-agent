@@ -18,6 +18,22 @@ Django/Channels로 포팅한 버전입니다.
 - 음성 합성을 통한 AI 응답 출력
 - 장고 서버를 경유해서 OpenAI로 웹소켓 연결
 
+## 핵심 코드
+
+AI 에이전트의 동작을 커스터마이즈하려면 [`consumers/__init__.py`](./consumers/__init__.py) 경로의 `OpenAIRealtimeConsumer` 클래스를 수정하면 됩니다.
+`BaseOpenAIRealtimeConsumer` 클래스를 상속받으며, 클래스 변수와 메서드를 재정의하여 동작을 변경하실 수 있습니다.
+
+```python
+from .base import BaseOpenAIRealtimeConsumer
+
+class OpenAIRealtimeConsumer(BaseOpenAIRealtimeConsumer):
+    # model: str = "gpt-4o-realtime-preview"
+    # url: str = "wss://api.openai.com/v1/realtime"
+    # api_key: str = os.getenv("OPENAI_API_KEY", "")
+    instructions = "You are a helpful assistant. Speak Korean."
+    tools = [add, tavily_tool]
+```
+
 ## 설치 방법
 
 1. 저장소를 클론합니다:

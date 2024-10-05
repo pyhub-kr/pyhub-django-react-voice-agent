@@ -1,7 +1,7 @@
 from django.urls import path
 
-from consumers import RealtimeConsumer
+from consumers import OpenAIRealtimeConsumer
 
 websocket_urlpatterns = [
-    path("ws/", RealtimeConsumer.as_asgi()),
+    path("ws/", OpenAIRealtimeConsumer.as_asgi()),
 ]

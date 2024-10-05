@@ -349,6 +349,53 @@ class BaseOpenAIRealtimeConsumer(AsyncWebsocketConsumer):
         """응답 스트리밍이 완료되었을 때 호출됩니다. 최종 상태와 관계없이 항상 발생합니다."""
         logger.debug("[response.done] %s", event)
 
+        usage = event["response"]["usage"]
+        # https://openai.com/api/pricing/ (gpt-4o-realtime-preview 2024-10-06 기준)
+        #  - Text : $5.00 / 1M input tokens, $20.00 / 1M output tokens
+        #  - Audio : $100.00 / 1M input tokens, $200.00 / 1M output tokens
+
+        # Token usage calculation
+        if "input_token_details" in usage:
+            text_input_tokens = usage["input_token_details"].get("text_tokens", 0)
+            audio_input_tokens = usage["input_token_details"].get("audio_tokens", 0)
+        else:
+            text_input_tokens = 0
+            audio_input_tokens = usage["input_tokens"]
+
+        if "output_token_details" in usage:
+            text_output_tokens = usage["output_token_details"].get("text_tokens", 0)
+            audio_output_tokens = usage["output_token_details"].get("audio_tokens", 0)
+        else:
+            text_output_tokens = 0
+            audio_output_tokens = usage["output_tokens"]
+
+        # Text token pricing
+        text_input_price = (text_input_tokens / 1_000_000) * 5.00
+        text_output_price = (text_output_tokens / 1_000_000) * 20.00
+        text_total_price = text_input_price + text_output_price
+
+        # Audio token pricing
+        audio_input_price = (audio_input_tokens / 1_000_000) * 100.00
+        audio_output_price = (audio_output_tokens / 1_000_000) * 200.00
+        audio_total_price = audio_input_price + audio_output_price
+
+        # Total pricing
+        total_price = text_total_price + audio_total_price
+
+        usd_to_krw = 1350  # 대략적인 환율, 필요에 따라 업데이트
+
+        logger.info(
+            f"토큰 사용량 - 텍스트: 입력 {text_input_tokens} (${text_input_price:.4f} / ₩{text_input_price * usd_to_krw:.0f}), "
+            f"출력 {text_output_tokens} (${text_output_price:.4f} / ₩{text_output_price * usd_to_krw:.0f}), "
+            f"합계: ${text_total_price:.4f} / ₩{text_total_price * usd_to_krw:.0f}"
+        )
+        logger.info(
+            f"토큰 사용량 - 오디오: 입력 {audio_input_tokens} (${audio_input_price:.4f} / ₩{audio_input_price * usd_to_krw:.0f}), "
+            f"출력 {audio_output_tokens} (${audio_output_price:.4f} / ₩{audio_output_price * usd_to_krw:.0f}), "
+            f"합계: ${audio_total_price:.4f} / ₩{audio_total_price * usd_to_krw:.0f}"
+        )
+        logger.info(f"총 사용량: ${total_price:.4f} / ₩{total_price * usd_to_krw:.0f}")
+
     async def on_openai_response_output_item_added(self, event: dict) -> None:
         """응답 생성 중 새로운 항목이 생성되었을 때 호출됩니다."""
         logger.debug("[response.output_item.added] %s", event)

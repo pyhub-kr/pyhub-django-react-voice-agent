@@ -42,6 +42,47 @@ class OpenAIRealtimeConsumer(BaseOpenAIRealtimeConsumer):
         # return await sync_to_async(lambda: user.is_authenticated)()        
 ```
 
+## API 비용을 알려면?
+
+`response.done` 이벤트는 응답 완료 이벤트이며, `event['response']['usage']`를 통해 입출력 토큰을 확인하실 수 있습니다. 
+
++ User : "안녕" 로 말했고,
++ Assistant : "안녕하세요! 어떻게 도와드릴까요?" 로 응답한 상황 => 약 **13원**의 비용 발생
+
+```python
+{
+  'type': 'response.done',
+  'event_id': 'event_AF2UYvN9TyAYdlTwXfrSu',
+  'response': {
+    'object': 'realtime.response',
+    # 생략
+    'usage': {
+      'total_tokens': 88,
+      'input_tokens': 24,
+      'output_tokens': 64,
+      'input_token_details': {
+        'cached_tokens': 0,
+        'text_tokens': 17,
+        'audio_tokens': 7,
+      },
+      'output_token_details': {
+        'text_tokens': 20,
+        'audio_tokens': 44,
+      }
+    }
+  }
+}
+
+```
+
+`python manage.py runserver` 명령에서 아래와 같이 `INFO` 레벨로 대략적인 비용이 출력됩니다.
+
+```
+INFO [2024-10-05 17:15:29] 토큰 사용량 - 텍스트: 입력 17 ($0.0001 / ₩0), 출력 20 ($0.0004 / ₩1), 합계: $0.0005 / ₩1
+INFO [2024-10-05 17:15:29] 토큰 사용량 - 오디오: 입력 7 ($0.0007 / ₩1), 출력 44 ($0.0088 / ₩12), 합계: $0.0095 / ₩13
+INFO [2024-10-05 17:15:29] 총 사용량: $0.0100 / ₩13
+```
+
 ## 설치 방법
 
 1. 저장소를 클론합니다:

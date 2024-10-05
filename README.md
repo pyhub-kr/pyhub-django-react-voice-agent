@@ -95,3 +95,10 @@ python manage.py runserver
 
 - 현재 버전에서는 정지 기능이 구현되어 있지 않습니다. 대화를 중단하려면 페이지를 새로고침해야 합니다.
 - 이 프로젝트는 개발 목적으로 만들어졌으며, 프로덕션 환경에서 사용하기 위해서는 추가적인 보안 조치가 필요합니다.
+
+## 작성자
+
++ [파이썬사랑방, 이진석](https://www.inflearn.com/users/25058/@pyhub)
++ me@pyhub.kr
++ 페이스북 그룹 [파이썬 사랑방 with Django/React](https://www.facebook.com/groups/askdjango)
+

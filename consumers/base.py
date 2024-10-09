@@ -35,6 +35,8 @@ class BaseOpenAIRealtimeConsumer(AsyncWebsocketConsumer):
     temperature: float = 0.8
     tools: list[BaseTool] = []
 
+    usd_to_krw: float = 1_350.0  # 대략적인 환율, 필요에 따라 업데이트
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.input_queue = asyncio.Queue()
@@ -42,8 +44,20 @@ class BaseOpenAIRealtimeConsumer(AsyncWebsocketConsumer):
         self.agent_task: asyncio.Task | None = None
         self.openai_realtime_websocket: websockets.WebSocketClientProtocol | None = None
 
-        tools_by_name = {tool.name: tool for tool in self.tools or []}
+        tools_by_name = {tool.name: tool for tool in self.get_tools() or []}
         self.tool_executor = VoiceToolExecutor(tools_by_name=tools_by_name)
+
+    def get_instructions(self) -> str:
+        return self.instructions
+
+    def get_temperature(self) -> float:
+        return self.temperature
+
+    def get_tools(self) -> list[BaseTool]:
+        return self.tools
+
+    def get_usd_to_krw(self) -> float:
+        return self.usd_to_krw
 
     async def check_permission(self, user) -> bool:
         """
@@ -83,17 +97,12 @@ class BaseOpenAIRealtimeConsumer(AsyncWebsocketConsumer):
             logger.error(
                 "사용자 정보가 scope에 없습니다. asgi.py에서 AuthMiddlewareStack을 적용해주세요."
             )
-            await self.close(
-                code=4500
-            )  # 4500: 커스텀 에러 코드 (AuthMiddlewareStack 미적용)
-            return
+            await self.close(code=4500)  # 커스텀 에러 코드
 
-        if not await self.check_permission(self.scope["user"]):
+        elif not await self.check_permission(self.scope["user"]):
             # 수락하고 종료를 해야, 지정한 종료코드가 전달됩니다.
             await self.accept()
-            await self.close(
-                code=4403
-            )  # 4403: Forbidden (custom code for unauthorized access)
+            await self.close(code=4403)  # Forbidden
         else:
             await self.accept()
             self.agent_task = asyncio.create_task(self.run_agent())
@@ -240,7 +249,7 @@ class BaseOpenAIRealtimeConsumer(AsyncWebsocketConsumer):
                 {
                     "type": "session.update",
                     "session": {
-                        "instructions": self.instructions,
+                        "instructions": self.get_instructions(),
                         "input_audio_transcription": {
                             "model": self.input_audio_transcription_model,
                         },
@@ -251,7 +260,7 @@ class BaseOpenAIRealtimeConsumer(AsyncWebsocketConsumer):
                             "prefix_padding_ms": 300,  # speech 시작 전에 적용할 audio padding
                             "silence_duration_ms": 200,  # speech stop 탐지 기준이 되는 침묵 시간 (default: 200)
                         },
-                        "temperature": self.temperature,
+                        "temperature": self.get_temperature(),
                         "tools": tool_defs,
                     },
                 }
@@ -413,7 +422,7 @@ class BaseOpenAIRealtimeConsumer(AsyncWebsocketConsumer):
         # Total pricing
         total_price = text_total_price + audio_total_price
 
-        usd_to_krw = 1350  # 대략적인 환율, 필요에 따라 업데이트
+        usd_to_krw = self.get_usd_to_krw()
 
         logger.info(
             f"토큰 사용량 - 텍스트: 입력 {text_input_tokens} (${text_input_price:.4f} / ₩{text_input_price * usd_to_krw:.0f}), "

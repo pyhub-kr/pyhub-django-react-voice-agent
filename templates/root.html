@@ -130,7 +130,7 @@
       ws = new WebSocket(WEBSOCKET_URL);
 
       audioPlayer = new Player();
-      audioPlayer.init(24000);
+      await audioPlayer.init(24000);
 
       ws.onmessage = event => {
         const data = JSON.parse(event.data);

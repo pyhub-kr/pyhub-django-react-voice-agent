@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import os
-from typing import Any, AsyncIterator, Union
+from typing import Any, AsyncIterator, Union, Literal
 
 import websockets
 from langchain_core.tools import BaseTool
@@ -23,10 +23,16 @@ User = get_user_model()
 
 
 class BaseOpenAIRealtimeConsumer(AsyncWebsocketConsumer):
-    model: str = "gpt-4o-realtime-preview"
+
     url: str = "wss://api.openai.com/v1/realtime"
     api_key: str = os.getenv("OPENAI_API_KEY", "")
+    # https://platform.openai.com/docs/models/gpt-4o-realtime
+    model: str = "gpt-4o-realtime-preview"
+    input_audio_transcription_model: Literal["whisper-1"] = "whisper-1"
+
+    voice: Literal["alloy"] = "alloy"
     instructions: str = "You are a helpful assistant."
+    temperature: float = 0.8
     tools: list[BaseTool] = []
 
     def __init__(self, *args, **kwargs):
@@ -228,15 +234,24 @@ class BaseOpenAIRealtimeConsumer(AsyncWebsocketConsumer):
                 }
                 for tool in self.tool_executor.tools_by_name.values()
             ]
+            # https://platform.openai.com/docs/api-reference/realtime-client-events/session-update
+            # 세션 디폴트 설정을 업데이트할 목적으로 이벤트 전송
             await self.send_to_openai(
-                # https://platform.openai.com/docs/api-reference/realtime-client-events/session-update
                 {
                     "type": "session.update",
                     "session": {
                         "instructions": self.instructions,
                         "input_audio_transcription": {
-                            "model": "whisper-1",
+                            "model": self.input_audio_transcription_model,
                         },
+                        "voice": self.voice,
+                        "turn_detection": {
+                            "type": "server_vad",  # "server_vad" 만 지원
+                            "threshold": 0.5,  # Activation threshold for VAD (0.0 to 1.0)
+                            "prefix_padding_ms": 300,  # speech 시작 전에 적용할 audio padding
+                            "silence_duration_ms": 200,  # speech stop 탐지 기준이 되는 침묵 시간 (default: 200)
+                        },
+                        "temperature": self.temperature,
                         "tools": tool_defs,
                     },
                 }
@@ -281,44 +296,55 @@ class BaseOpenAIRealtimeConsumer(AsyncWebsocketConsumer):
     #  - https://platform.openai.com/docs/guides/realtime/server-events
     #
 
+    # https://www.jetbrains.com/help/pycharm/disabling-and-enabling-inspections.html#change-highlighting-level-for-file
+    # noinspection PyMethodMayBeStatic
     async def on_openai_error(self, event: dict) -> None:
         """OpenAI API 호출에서 오류가 발생했을 때 호출됩니다."""
         logger.error("[error] %s", event)
 
+    # noinspection PyMethodMayBeStatic
     async def on_openai_session_created(self, event: dict) -> None:
         """OpenAI 세션이 생성되었을 때 호출됩니다. 새로운 연결이 설정될 때 자동으로 발생합니다."""
         logger.debug("[session.created] %s", event)
 
+    # noinspection PyMethodMayBeStatic
     async def on_openai_session_updated(self, event: dict) -> None:
         """OpenAI 세션이 업데이트되었을 때 호출됩니다."""
         logger.debug("[session.updated] %s", event)
 
+    # noinspection PyMethodMayBeStatic
     async def on_openai_conversation_created(self, event: dict) -> None:
         """OpenAI 대화가 생성되었을 때 호출됩니다. 세션 생성 직후에 발생합니다."""
         logger.debug("[conversation.created] %s", event)
 
+    # noinspection PyMethodMayBeStatic
     async def on_openai_input_audio_buffer_committed(self, event: dict) -> None:
         """OpenAI 입력 오디오 버퍼가 커밋되었을 때 호출됩니다. 클라이언트에 의해 또는 서버 VAD 모드에서 자동으로 발생할 수 있습니다."""
         logger.debug("[input_audio_buffer.committed] %s", event)
 
+    # noinspection PyMethodMayBeStatic
     async def on_openai_input_audio_buffer_cleared(self, event: dict) -> None:
         """OpenAI 입력 오디오 버퍼가 클라이언트에 의해 지워졌을 때 호출됩니다."""
         logger.debug("[input_audio_buffer.cleared] %s", event)
 
+    # noinspection PyMethodMayBeStatic
     async def on_openai_input_audio_buffer_speech_started(self, event: dict) -> None:
         """Returned in server turn detection mode when speech is detected."""
         logger.debug("[input_audio_buffer.speech_started] %s", event)
         # WebSocket 클라이언트로 음성 시작 신호 전송
         await self.send(text_data=json.dumps(event))
 
+    # noinspection PyMethodMayBeStatic
     async def on_openai_input_audio_buffer_speech_stopped(self, event: dict) -> None:
         """서버 턴 감지 모드에서 음성이 멈추었을 때 호출됩니다."""
         logger.debug("[input_audio_buffer.speech_stopped] %s", event)
 
+    # noinspection PyMethodMayBeStatic
     async def on_openai_conversation_item_created(self, event: dict) -> None:
         """대화 항목이 생성되었을 때 호출됩니다."""
         logger.debug("[conversation.item.created] %s", event)
 
+    # noinspection PyMethodMayBeStatic
     async def on_openai_conversation_item_input_audio_transcription_completed(
         self, event: dict
     ) -> None:
@@ -327,24 +353,29 @@ class BaseOpenAIRealtimeConsumer(AsyncWebsocketConsumer):
             "[conversation.item.input_audio_transcription.completed] %s", event
         )
 
+    # noinspection PyMethodMayBeStatic
     async def on_openai_conversation_item_input_audio_transcription_failed(
         self, event: dict
     ) -> None:
         """입력 오디오 음성-텍스트 변환이 설정되어 있고, 사용자 메시지에 대한 음성-텍스트 변환 요청이 실패했을 때 호출됩니다."""
         logger.debug("[conversation.item.input_audio_transcription.failed] %s", event)
 
+    # noinspection PyMethodMayBeStatic
     async def on_openai_conversation_item_truncated(self, event: dict) -> None:
         """이전 어시스턴트 오디오 메시지 항목이 클라이언트에 의해 잘렸을 때 호출됩니다."""
         logger.debug("[conversation.item.truncated] %s", event)
 
+    # noinspection PyMethodMayBeStatic
     async def on_openai_conversation_item_deleted(self, event: dict) -> None:
         """대화에서 항목이 삭제되었을 때 호출됩니다."""
         logger.debug("[conversation.item.deleted] %s", event)
 
+    # noinspection PyMethodMayBeStatic
     async def on_openai_response_created(self, event: dict) -> None:
         """새로운 응답이 생성되었을 때 호출됩니다. 응답 생성의 첫 번째 이벤트로, 응답이 '진행 중' 초기 상태에 있습니다."""
         logger.debug("[response.created] %s", event)
 
+    # noinspection PyMethodMayBeStatic
     async def on_openai_response_done(self, event: dict) -> None:
         """응답 스트리밍이 완료되었을 때 호출됩니다. 최종 상태와 관계없이 항상 발생합니다."""
         logger.debug("[response.done] %s", event)
@@ -396,47 +427,58 @@ class BaseOpenAIRealtimeConsumer(AsyncWebsocketConsumer):
         )
         logger.info(f"총 사용량: ${total_price:.4f} / ₩{total_price * usd_to_krw:.0f}")
 
+    # noinspection PyMethodMayBeStatic
     async def on_openai_response_output_item_added(self, event: dict) -> None:
         """응답 생성 중 새로운 항목이 생성되었을 때 호출됩니다."""
         logger.debug("[response.output_item.added] %s", event)
 
+    # noinspection PyMethodMayBeStatic
     async def on_openai_response_output_item_done(self, event: dict) -> None:
         """항목 스트리밍이 완료되었을 때 호출됩니다. 응답이 중단되거나, 불완전하거나, 취소되었을 때도 발생합니다."""
         logger.debug("[response.output_item.done] %s", event)
 
+    # noinspection PyMethodMayBeStatic
     async def on_openai_response_content_part_added(self, event: dict) -> None:
         """응답 생성 중 어시스턴트 메시지 항목에 새로운 콘텐츠 부분이 추가되었을 때 호출됩니다."""
         logger.debug("[response.content_part.added] %s", event)
 
+    # noinspection PyMethodMayBeStatic
     async def on_openai_response_content_part_done(self, event: dict) -> None:
         """어시스턴트 메시지 항목에서 콘텐츠 부분 스트리밍이 완료되었을 때 호출됩니다. 응답이 중단되거나, 불완전하거나, 취소되었을 때도 발생합니다."""
         logger.debug("[response.content_part.done] %s", event)
 
+    # noinspection PyMethodMayBeStatic
     async def on_openai_response_text_delta(self, event: dict) -> None:
         """'텍스트' 콘텐츠 부분의 텍스트 값이 업데이트되었을 때 호출됩니다."""
         logger.debug("[response.text.delta] %s", event)
 
+    # noinspection PyMethodMayBeStatic
     async def on_openai_response_text_done(self, event: dict) -> None:
         """'텍스트' 콘텐츠 부분의 텍스트 값 스트리밍이 완료되었을 때 호출됩니다. 응답이 중단되거나, 불완전하거나, 취소되었을 때도 발생합니다."""
         logger.debug("[response.text.done] %s", event)
 
+    # noinspection PyMethodMayBeStatic
     async def on_openai_response_audio_transcript_delta(self, event: dict) -> None:
         """AI가 만든 음성/글자 변환이 새로 업데이트될 때마다 실행됩니다."""
         logger.debug("[response.audio_transcript.delta] %s", event)
 
+    # noinspection PyMethodMayBeStatic
     async def on_openai_response_audio_transcript_done(self, event: dict) -> None:
         """AI가 만든 음성/글자 변환 스트림이 완료되었을 때 실행됩니다. 또한 응답이 중단되거나 불완전하거나 취소되었을 때도 실행됩니다."""
         logger.debug("[response.audio_transcript.done] %s", event)
 
+    # noinspection PyMethodMayBeStatic
     async def on_openai_response_audio_delta(self, event: dict) -> None:
         """오디오 응답의 일부가 생성되었을 때, WebSocket 클라이언트로 오디오 데이터 전송"""
         logger.debug("[response.audio.delta] %s", event)
         await self.send(text_data=json.dumps(event))
 
+    # noinspection PyMethodMayBeStatic
     async def on_openai_response_audio_done(self, event: dict) -> None:
         """모델이 생성한 오디오가 완료되었을 때 호출됩니다. 응답이 중단되거나, 불완전하거나, 취소되었을 때도 발생합니다."""
         logger.debug("[response.audio.done] %s", event)
 
+    # noinspection PyMethodMayBeStatic
     async def on_openai_response_function_call_arguments_delta(
         self, event: dict
     ) -> None:
@@ -451,6 +493,7 @@ class BaseOpenAIRealtimeConsumer(AsyncWebsocketConsumer):
         # 도구 실행기에 도구 호출 추가
         await self.tool_executor.add_tool_call(event)
 
+    # noinspection PyMethodMayBeStatic
     async def on_openai_rate_limits_updated(self, event: dict) -> None:
         """모든 "response.done" 이벤트 이후에 발생하며, 남은 요청 리밋과 토큰 리밋을 응답합니다."""
         logger.info("[rate_limits.updated] %s", event)

@@ -105,22 +105,26 @@ venv\Scripts\activate  # macOS/Linux의 경우: source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-4. OpenAI API Key
+4. API Keys
     - OpenAI API를 사용하므로, OpenAI API Key가 필요합니다. [OpenAI API Keys](https://platform.openai.com/account/api-keys) 페이지에서 발급받으실 수 있습니다.
+    - Tool에서 Tavily API를 사용하므로, Tavily API Key가 필요합니다. [Tavily](https://tavily.com/) 페이지에서 로그인 후에 API Key를 확인하실 수 있습니다. 
 
 ## 실행 방법
 
-1. 터미널을 띄우시고, `OPENAI_API_KEY` 환경변수를 설정합니다.
+1. 터미널을 띄우시고, `OPENAI_API_KEY` 환경변수와 `TAVILY_API_KEY` 환경변수를 설정합니다.
 
 ```shell
 # 윈도우 명령프롬프트 (CMD)
-set OPENAI_API_KEY=your_api_key
+set OPENAI_API_KEY=your_openai_api_key
+set TAVILY_API_KEY=your_tavily_api_key
 
 # 파워쉘
-$env:OPENAI_API_KEY="your_api_key"
+$env:OPENAI_API_KEY="your_openai_api_key"
+$env:TAVILY_API_KEY="your_tavily_api_key"
 
 # macOS/Linux
-export OPENAI_API_KEY=your_api_key
+export OPENAI_API_KEY=your_openai_api_key
+export TAVILY_API_KEY=your_tavily_api_key
 ```
 
 2. 기본 데이터베이스 생성을 위해 migrate 명령을 수행합니다. `SQLite` 데이터베이스가 프로젝트 루트에 `db.sqlite3` 파일로 생성됩니다.
